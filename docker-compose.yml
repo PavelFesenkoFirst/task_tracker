@@ -18,6 +18,7 @@ services:
       - redis
     environment:
       - DB_HOST=mysql
+      - DB_PORT=3306
       - REDIS_HOST=redis
 
   worker:
@@ -35,6 +36,7 @@ services:
       - redis
     environment:
       - DB_HOST=mysql
+      - DB_PORT=3306
       - REDIS_HOST=redis
 
   mysql:
