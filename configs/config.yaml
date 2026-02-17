@@ -5,5 +5,22 @@ app:
 
 database:
   host: 127.0.0.1
-  port: 3036
+  port: 3306
   name: task_tracker
+  user: task_tracker_user
+  password: task_tracker_password
+
+redis:
+  host: 127.0.0.1
+  port: 6379
+  password: ""
+  db: 0
+
+jwt:
+  secret: your-super-secret-jwt-key-change-in-production
+  expire_hours: 24
+
+cors:
+  allowed_origins:
+    - http://localhost:3000
+    - http://localhost:8080
