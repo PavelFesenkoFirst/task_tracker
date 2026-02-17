@@ -1,2 +1,36 @@
 # task_tracker
-Kanban Task Tracker is a lightweight Trello-style web app for teams. Create boards with columns, add cards, tag them, and discuss via comments. Move tasks across statuses with drag-and-drop.
+
+Task Tracker API with background worker processes.
+
+Current architecture:
+
+```text
+cmd/
+  api/main.go
+  worker/main.go
+
+internal/
+  config/
+  platform/
+    logger/
+    mysql/
+  task/
+  job/
+```
+
+## Run (dev)
+
+```bash
+docker compose -f docker-compose.dev.yml up --build
+```
+
+## Run (prod-like)
+
+```bash
+docker compose up --build
+```
+
+## Available endpoints (current bootstrap)
+
+- `GET /health`
+- `GET /ping`
