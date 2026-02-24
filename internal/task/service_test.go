@@ -13,6 +13,7 @@ type mockRepository struct {
 	updateParams UpdateParams
 	listFilter   ListFilter
 	getID        uint64
+	updateID     uint64
 	deleteID     uint64
 
 	createCalled bool
@@ -63,7 +64,7 @@ func (m *mockRepository) List(_ context.Context, filter ListFilter) ([]Task, err
 func (m *mockRepository) Update(_ context.Context, id uint64, params UpdateParams) (Task, error) {
 	m.updateCalled = true
 	m.updateParams = params
-	m.getID = id
+	m.updateID = id
 	if m.updateErr != nil {
 		return Task{}, m.updateErr
 	}
@@ -406,8 +407,8 @@ func TestServiceUpdate_ValidationAndTransformation(t *testing.T) {
 	if !clearDueAtRepo.updateCalled {
 		t.Fatal("expected repository update to be called for clear_due_at only")
 	}
-	if clearDueAtRepo.getID != 8 {
-		t.Fatalf("expected update id 8, got %d", clearDueAtRepo.getID)
+	if clearDueAtRepo.updateID != 8 {
+		t.Fatalf("expected update id 8, got %d", clearDueAtRepo.updateID)
 	}
 	if !clearDueAtRepo.updateParams.ClearDueAt {
 		t.Fatal("expected clear_due_at to be true in repository params")
@@ -442,8 +443,8 @@ func TestServiceUpdate_ValidationAndTransformation(t *testing.T) {
 	if !repo.updateCalled {
 		t.Fatal("expected repository update to be called")
 	}
-	if repo.getID != 9 {
-		t.Fatalf("expected update id 9, got %d", repo.getID)
+	if repo.updateID != 9 {
+		t.Fatalf("expected update id 9, got %d", repo.updateID)
 	}
 	if repo.updateParams.Title == nil || *repo.updateParams.Title != "Updated title" {
 		t.Fatalf("unexpected title param: %#v", repo.updateParams.Title)
