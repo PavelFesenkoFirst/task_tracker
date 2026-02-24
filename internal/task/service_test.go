@@ -424,3 +424,76 @@ func TestServiceDelete_ValidationAndPassThrough(t *testing.T) {
 		t.Fatalf("expected delete id 12, got %d", repo.deleteID)
 	}
 }
+
+func TestService_RepositoryErrorsArePropagated(t *testing.T) {
+	t.Run("create", func(t *testing.T) {
+		repoErr := errors.New("create failed")
+		repo := &mockRepository{createErr: repoErr}
+		svc := NewService(repo)
+
+		_, err := svc.Create(context.Background(), CreateTaskInput{Title: "task"})
+		if !errors.Is(err, repoErr) {
+			t.Fatalf("expected error %v, got %v", repoErr, err)
+		}
+		if !repo.createCalled {
+			t.Fatal("expected repository create to be called")
+		}
+	})
+
+	t.Run("get by id", func(t *testing.T) {
+		repoErr := errors.New("get failed")
+		repo := &mockRepository{getErr: repoErr}
+		svc := NewService(repo)
+
+		_, err := svc.GetByID(context.Background(), 1)
+		if !errors.Is(err, repoErr) {
+			t.Fatalf("expected error %v, got %v", repoErr, err)
+		}
+		if !repo.getCalled {
+			t.Fatal("expected repository get to be called")
+		}
+	})
+
+	t.Run("list", func(t *testing.T) {
+		repoErr := errors.New("list failed")
+		repo := &mockRepository{listErr: repoErr}
+		svc := NewService(repo)
+
+		_, err := svc.List(context.Background(), ListTasksInput{})
+		if !errors.Is(err, repoErr) {
+			t.Fatalf("expected error %v, got %v", repoErr, err)
+		}
+		if !repo.listCalled {
+			t.Fatal("expected repository list to be called")
+		}
+	})
+
+	t.Run("update", func(t *testing.T) {
+		repoErr := errors.New("update failed")
+		repo := &mockRepository{updateErr: repoErr}
+		svc := NewService(repo)
+		status := "done"
+
+		_, err := svc.Update(context.Background(), 1, UpdateTaskInput{Status: &status})
+		if !errors.Is(err, repoErr) {
+			t.Fatalf("expected error %v, got %v", repoErr, err)
+		}
+		if !repo.updateCalled {
+			t.Fatal("expected repository update to be called")
+		}
+	})
+
+	t.Run("delete", func(t *testing.T) {
+		repoErr := errors.New("delete failed")
+		repo := &mockRepository{deleteErr: repoErr}
+		svc := NewService(repo)
+
+		err := svc.Delete(context.Background(), 1)
+		if !errors.Is(err, repoErr) {
+			t.Fatalf("expected error %v, got %v", repoErr, err)
+		}
+		if !repo.deleteCalled {
+			t.Fatal("expected repository delete to be called")
+		}
+	})
+}
