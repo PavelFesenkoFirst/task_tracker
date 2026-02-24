@@ -150,7 +150,7 @@ func TestServiceCreate_ValidationErrors(t *testing.T) {
 		},
 		{
 			name:  "priority below range",
-			input: CreateTaskInput{Title: "ok", Priority: 0 - 1},
+			input: CreateTaskInput{Title: "ok", Priority: -1},
 			field: "priority",
 		},
 		{
