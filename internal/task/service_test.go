@@ -128,6 +128,11 @@ func TestServiceCreate_ValidationErrors(t *testing.T) {
 			field: "title",
 		},
 		{
+			name:  "too long title",
+			input: CreateTaskInput{Title: strings.Repeat("a", maxTitleLength+1)},
+			field: "title",
+		},
+		{
 			name:  "invalid status",
 			input: CreateTaskInput{Title: "ok", Status: "bad"},
 			field: "status",
