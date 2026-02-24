@@ -272,12 +272,16 @@ func TestServiceList_NormalizationAndValidation(t *testing.T) {
 }
 
 func TestServiceUpdate_ValidationAndTransformation(t *testing.T) {
-	svc := NewService(&mockRepository{})
+	validationRepo := &mockRepository{}
+	svc := NewService(validationRepo)
 
 	title := "  "
 	_, err := svc.Update(context.Background(), 1, UpdateTaskInput{Title: &title})
 	if err == nil {
 		t.Fatal("expected validation error for empty title")
+	}
+	if validationRepo.updateCalled {
+		t.Fatal("repository should not be called for invalid title")
 	}
 
 	dueAt := time.Now()
@@ -288,15 +292,50 @@ func TestServiceUpdate_ValidationAndTransformation(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected validation error for clear_due_at + due_at")
 	}
+	if validationRepo.updateCalled {
+		t.Fatal("repository should not be called for invalid due_at + clear_due_at")
+	}
 
 	_, err = svc.Update(context.Background(), 0, UpdateTaskInput{})
 	if err == nil {
 		t.Fatal("expected validation error for zero id")
 	}
+	if validationRepo.updateCalled {
+		t.Fatal("repository should not be called for invalid id")
+	}
 
 	_, err = svc.Update(context.Background(), 1, UpdateTaskInput{})
 	if err == nil {
 		t.Fatal("expected validation error for empty update payload")
+	}
+	if validationRepo.updateCalled {
+		t.Fatal("repository should not be called for empty update payload")
+	}
+
+	invalidStatus := "broken"
+	_, err = svc.Update(context.Background(), 1, UpdateTaskInput{Status: &invalidStatus})
+	if err == nil {
+		t.Fatal("expected validation error for invalid status")
+	}
+	var statusErr ValidationError
+	if !errors.As(err, &statusErr) || statusErr.Field != "status" {
+		t.Fatalf("expected status ValidationError, got %v", err)
+	}
+	if validationRepo.updateCalled {
+		t.Fatal("repository should not be called for invalid status")
+	}
+
+	invalidPriority := 6
+	_, err = svc.Update(context.Background(), 1, UpdateTaskInput{Priority: &invalidPriority})
+	if err == nil {
+		t.Fatal("expected validation error for invalid priority")
+	}
+	var priorityErr ValidationError
+	if !errors.As(err, &priorityErr) || priorityErr.Field != "priority" {
+		t.Fatalf("expected priority ValidationError, got %v", err)
+	}
+	if validationRepo.updateCalled {
+		t.Fatal("repository should not be called for invalid priority")
 	}
 
 	repo := &mockRepository{updateResult: Task{ID: 9}}
