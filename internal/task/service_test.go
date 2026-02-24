@@ -272,6 +272,27 @@ func TestServiceList_NormalizationAndValidation(t *testing.T) {
 	}
 }
 
+func TestServiceList_DefaultLimitWhenZero(t *testing.T) {
+	repo := &mockRepository{
+		listResult: []Task{{ID: 1}},
+	}
+	svc := NewService(repo)
+
+	_, err := svc.List(context.Background(), ListTasksInput{
+		Limit:  0,
+		Offset: 0,
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !repo.listCalled {
+		t.Fatal("expected repository list to be called")
+	}
+	if repo.listFilter.Limit != defaultLimit {
+		t.Fatalf("expected default limit %d, got %d", defaultLimit, repo.listFilter.Limit)
+	}
+}
+
 func TestServiceUpdate_ValidationAndTransformation(t *testing.T) {
 	validationRepo := &mockRepository{}
 	svc := NewService(validationRepo)
