@@ -392,9 +392,6 @@ func TestServiceUpdate_ValidationAndTransformation(t *testing.T) {
 		t.Fatal("repository should not be called for invalid priority")
 	}
 
-	repo := &mockRepository{updateResult: Task{ID: 9}}
-	svc = NewService(repo)
-
 	clearDueAtRepo := &mockRepository{updateResult: Task{ID: 8}}
 	svc = NewService(clearDueAtRepo)
 
@@ -420,7 +417,7 @@ func TestServiceUpdate_ValidationAndTransformation(t *testing.T) {
 		t.Fatalf("expected updated task ID 8, got %d", cleared.ID)
 	}
 
-	repo = &mockRepository{updateResult: Task{ID: 9}}
+	repo := &mockRepository{updateResult: Task{ID: 9}}
 	svc = NewService(repo)
 
 	newTitle := "  Updated title  "
