@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -282,6 +283,19 @@ func TestServiceUpdate_ValidationAndTransformation(t *testing.T) {
 	}
 	if validationRepo.updateCalled {
 		t.Fatal("repository should not be called for invalid title")
+	}
+
+	longTitle := strings.Repeat("a", maxTitleLength+1)
+	_, err = svc.Update(context.Background(), 1, UpdateTaskInput{Title: &longTitle})
+	if err == nil {
+		t.Fatal("expected validation error for too long title")
+	}
+	var longTitleErr ValidationError
+	if !errors.As(err, &longTitleErr) || longTitleErr.Field != "title" {
+		t.Fatalf("expected title ValidationError, got %v", err)
+	}
+	if validationRepo.updateCalled {
+		t.Fatal("repository should not be called for too long title")
 	}
 
 	dueAt := time.Now()
