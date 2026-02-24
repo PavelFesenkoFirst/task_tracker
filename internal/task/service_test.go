@@ -310,6 +310,19 @@ func TestServiceUpdate_ValidationAndTransformation(t *testing.T) {
 		t.Fatal("repository should not be called for invalid due_at + clear_due_at")
 	}
 
+	zeroDueAt := time.Time{}
+	_, err = svc.Update(context.Background(), 1, UpdateTaskInput{DueAt: &zeroDueAt})
+	if err == nil {
+		t.Fatal("expected validation error for zero due_at")
+	}
+	var dueAtErr ValidationError
+	if !errors.As(err, &dueAtErr) || dueAtErr.Field != "due_at" {
+		t.Fatalf("expected due_at ValidationError, got %v", err)
+	}
+	if validationRepo.updateCalled {
+		t.Fatal("repository should not be called for zero due_at")
+	}
+
 	_, err = svc.Update(context.Background(), 0, UpdateTaskInput{})
 	if err == nil {
 		t.Fatal("expected validation error for zero id")
