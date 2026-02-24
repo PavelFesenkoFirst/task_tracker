@@ -389,6 +389,34 @@ func TestServiceUpdate_ValidationAndTransformation(t *testing.T) {
 	repo := &mockRepository{updateResult: Task{ID: 9}}
 	svc = NewService(repo)
 
+	clearDueAtRepo := &mockRepository{updateResult: Task{ID: 8}}
+	svc = NewService(clearDueAtRepo)
+
+	cleared, err := svc.Update(context.Background(), 8, UpdateTaskInput{
+		ClearDueAt: true,
+	})
+	if err != nil {
+		t.Fatalf("expected no error for clear_due_at only, got %v", err)
+	}
+	if !clearDueAtRepo.updateCalled {
+		t.Fatal("expected repository update to be called for clear_due_at only")
+	}
+	if clearDueAtRepo.getID != 8 {
+		t.Fatalf("expected update id 8, got %d", clearDueAtRepo.getID)
+	}
+	if !clearDueAtRepo.updateParams.ClearDueAt {
+		t.Fatal("expected clear_due_at to be true in repository params")
+	}
+	if clearDueAtRepo.updateParams.DueAt != nil {
+		t.Fatalf("expected due_at to be nil when clear_due_at=true, got %v", *clearDueAtRepo.updateParams.DueAt)
+	}
+	if cleared.ID != 8 {
+		t.Fatalf("expected updated task ID 8, got %d", cleared.ID)
+	}
+
+	repo = &mockRepository{updateResult: Task{ID: 9}}
+	svc = NewService(repo)
+
 	newTitle := "  Updated title  "
 	newDescription := "  Updated description  "
 	newStatus := "in_progress"
