@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -12,6 +13,7 @@ type mockRepository struct {
 	updateParams UpdateParams
 	listFilter   ListFilter
 	getID        uint64
+	updateID     uint64
 	deleteID     uint64
 
 	createCalled bool
@@ -62,7 +64,7 @@ func (m *mockRepository) List(_ context.Context, filter ListFilter) ([]Task, err
 func (m *mockRepository) Update(_ context.Context, id uint64, params UpdateParams) (Task, error) {
 	m.updateCalled = true
 	m.updateParams = params
-	m.getID = id
+	m.updateID = id
 	if m.updateErr != nil {
 		return Task{}, m.updateErr
 	}
@@ -127,6 +129,11 @@ func TestServiceCreate_ValidationErrors(t *testing.T) {
 			field: "title",
 		},
 		{
+			name:  "too long title",
+			input: CreateTaskInput{Title: strings.Repeat("a", maxTitleLength+1)},
+			field: "title",
+		},
+		{
 			name:  "invalid status",
 			input: CreateTaskInput{Title: "ok", Status: "bad"},
 			field: "status",
@@ -143,7 +150,7 @@ func TestServiceCreate_ValidationErrors(t *testing.T) {
 		},
 		{
 			name:  "priority below range",
-			input: CreateTaskInput{Title: "ok", Priority: 0 - 1},
+			input: CreateTaskInput{Title: "ok", Priority: -1},
 			field: "priority",
 		},
 		{
@@ -271,13 +278,51 @@ func TestServiceList_NormalizationAndValidation(t *testing.T) {
 	}
 }
 
+func TestServiceList_DefaultLimitWhenZero(t *testing.T) {
+	repo := &mockRepository{
+		listResult: []Task{{ID: 1}},
+	}
+	svc := NewService(repo)
+
+	_, err := svc.List(context.Background(), ListTasksInput{
+		Limit:  0,
+		Offset: 0,
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !repo.listCalled {
+		t.Fatal("expected repository list to be called")
+	}
+	if repo.listFilter.Limit != defaultLimit {
+		t.Fatalf("expected default limit %d, got %d", defaultLimit, repo.listFilter.Limit)
+	}
+}
+
 func TestServiceUpdate_ValidationAndTransformation(t *testing.T) {
-	svc := NewService(&mockRepository{})
+	validationRepo := &mockRepository{}
+	svc := NewService(validationRepo)
 
 	title := "  "
 	_, err := svc.Update(context.Background(), 1, UpdateTaskInput{Title: &title})
 	if err == nil {
 		t.Fatal("expected validation error for empty title")
+	}
+	if validationRepo.updateCalled {
+		t.Fatal("repository should not be called for invalid title")
+	}
+
+	longTitle := strings.Repeat("a", maxTitleLength+1)
+	_, err = svc.Update(context.Background(), 1, UpdateTaskInput{Title: &longTitle})
+	if err == nil {
+		t.Fatal("expected validation error for too long title")
+	}
+	var longTitleErr ValidationError
+	if !errors.As(err, &longTitleErr) || longTitleErr.Field != "title" {
+		t.Fatalf("expected title ValidationError, got %v", err)
+	}
+	if validationRepo.updateCalled {
+		t.Fatal("repository should not be called for too long title")
 	}
 
 	dueAt := time.Now()
@@ -288,15 +333,88 @@ func TestServiceUpdate_ValidationAndTransformation(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected validation error for clear_due_at + due_at")
 	}
+	if validationRepo.updateCalled {
+		t.Fatal("repository should not be called for invalid due_at + clear_due_at")
+	}
+
+	zeroDueAt := time.Time{}
+	_, err = svc.Update(context.Background(), 1, UpdateTaskInput{DueAt: &zeroDueAt})
+	if err == nil {
+		t.Fatal("expected validation error for zero due_at")
+	}
+	var dueAtErr ValidationError
+	if !errors.As(err, &dueAtErr) || dueAtErr.Field != "due_at" {
+		t.Fatalf("expected due_at ValidationError, got %v", err)
+	}
+	if validationRepo.updateCalled {
+		t.Fatal("repository should not be called for zero due_at")
+	}
 
 	_, err = svc.Update(context.Background(), 0, UpdateTaskInput{})
 	if err == nil {
 		t.Fatal("expected validation error for zero id")
 	}
+	if validationRepo.updateCalled {
+		t.Fatal("repository should not be called for invalid id")
+	}
 
 	_, err = svc.Update(context.Background(), 1, UpdateTaskInput{})
 	if err == nil {
 		t.Fatal("expected validation error for empty update payload")
+	}
+	if validationRepo.updateCalled {
+		t.Fatal("repository should not be called for empty update payload")
+	}
+
+	invalidStatus := "broken"
+	_, err = svc.Update(context.Background(), 1, UpdateTaskInput{Status: &invalidStatus})
+	if err == nil {
+		t.Fatal("expected validation error for invalid status")
+	}
+	var statusErr ValidationError
+	if !errors.As(err, &statusErr) || statusErr.Field != "status" {
+		t.Fatalf("expected status ValidationError, got %v", err)
+	}
+	if validationRepo.updateCalled {
+		t.Fatal("repository should not be called for invalid status")
+	}
+
+	invalidPriority := 6
+	_, err = svc.Update(context.Background(), 1, UpdateTaskInput{Priority: &invalidPriority})
+	if err == nil {
+		t.Fatal("expected validation error for invalid priority")
+	}
+	var priorityErr ValidationError
+	if !errors.As(err, &priorityErr) || priorityErr.Field != "priority" {
+		t.Fatalf("expected priority ValidationError, got %v", err)
+	}
+	if validationRepo.updateCalled {
+		t.Fatal("repository should not be called for invalid priority")
+	}
+
+	clearDueAtRepo := &mockRepository{updateResult: Task{ID: 8}}
+	svc = NewService(clearDueAtRepo)
+
+	cleared, err := svc.Update(context.Background(), 8, UpdateTaskInput{
+		ClearDueAt: true,
+	})
+	if err != nil {
+		t.Fatalf("expected no error for clear_due_at only, got %v", err)
+	}
+	if !clearDueAtRepo.updateCalled {
+		t.Fatal("expected repository update to be called for clear_due_at only")
+	}
+	if clearDueAtRepo.updateID != 8 {
+		t.Fatalf("expected update id 8, got %d", clearDueAtRepo.updateID)
+	}
+	if !clearDueAtRepo.updateParams.ClearDueAt {
+		t.Fatal("expected clear_due_at to be true in repository params")
+	}
+	if clearDueAtRepo.updateParams.DueAt != nil {
+		t.Fatalf("expected due_at to be nil when clear_due_at=true, got %v", *clearDueAtRepo.updateParams.DueAt)
+	}
+	if cleared.ID != 8 {
+		t.Fatalf("expected updated task ID 8, got %d", cleared.ID)
 	}
 
 	repo := &mockRepository{updateResult: Task{ID: 9}}
@@ -322,8 +440,8 @@ func TestServiceUpdate_ValidationAndTransformation(t *testing.T) {
 	if !repo.updateCalled {
 		t.Fatal("expected repository update to be called")
 	}
-	if repo.getID != 9 {
-		t.Fatalf("expected update id 9, got %d", repo.getID)
+	if repo.updateID != 9 {
+		t.Fatalf("expected update id 9, got %d", repo.updateID)
 	}
 	if repo.updateParams.Title == nil || *repo.updateParams.Title != "Updated title" {
 		t.Fatalf("unexpected title param: %#v", repo.updateParams.Title)
@@ -370,4 +488,77 @@ func TestServiceDelete_ValidationAndPassThrough(t *testing.T) {
 	if repo.deleteID != 12 {
 		t.Fatalf("expected delete id 12, got %d", repo.deleteID)
 	}
+}
+
+func TestService_RepositoryErrorsArePropagated(t *testing.T) {
+	t.Run("create", func(t *testing.T) {
+		repoErr := errors.New("create failed")
+		repo := &mockRepository{createErr: repoErr}
+		svc := NewService(repo)
+
+		_, err := svc.Create(context.Background(), CreateTaskInput{Title: "task"})
+		if !errors.Is(err, repoErr) {
+			t.Fatalf("expected error %v, got %v", repoErr, err)
+		}
+		if !repo.createCalled {
+			t.Fatal("expected repository create to be called")
+		}
+	})
+
+	t.Run("get by id", func(t *testing.T) {
+		repoErr := errors.New("get failed")
+		repo := &mockRepository{getErr: repoErr}
+		svc := NewService(repo)
+
+		_, err := svc.GetByID(context.Background(), 1)
+		if !errors.Is(err, repoErr) {
+			t.Fatalf("expected error %v, got %v", repoErr, err)
+		}
+		if !repo.getCalled {
+			t.Fatal("expected repository get to be called")
+		}
+	})
+
+	t.Run("list", func(t *testing.T) {
+		repoErr := errors.New("list failed")
+		repo := &mockRepository{listErr: repoErr}
+		svc := NewService(repo)
+
+		_, err := svc.List(context.Background(), ListTasksInput{})
+		if !errors.Is(err, repoErr) {
+			t.Fatalf("expected error %v, got %v", repoErr, err)
+		}
+		if !repo.listCalled {
+			t.Fatal("expected repository list to be called")
+		}
+	})
+
+	t.Run("update", func(t *testing.T) {
+		repoErr := errors.New("update failed")
+		repo := &mockRepository{updateErr: repoErr}
+		svc := NewService(repo)
+		status := "done"
+
+		_, err := svc.Update(context.Background(), 1, UpdateTaskInput{Status: &status})
+		if !errors.Is(err, repoErr) {
+			t.Fatalf("expected error %v, got %v", repoErr, err)
+		}
+		if !repo.updateCalled {
+			t.Fatal("expected repository update to be called")
+		}
+	})
+
+	t.Run("delete", func(t *testing.T) {
+		repoErr := errors.New("delete failed")
+		repo := &mockRepository{deleteErr: repoErr}
+		svc := NewService(repo)
+
+		err := svc.Delete(context.Background(), 1)
+		if !errors.Is(err, repoErr) {
+			t.Fatalf("expected error %v, got %v", repoErr, err)
+		}
+		if !repo.deleteCalled {
+			t.Fatal("expected repository delete to be called")
+		}
+	})
 }
