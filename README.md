@@ -30,7 +30,68 @@ docker compose -f docker-compose.dev.yml up --build
 docker compose up --build
 ```
 
-## Available endpoints (current bootstrap)
+## Available endpoints
 
 - `GET /health`
 - `GET /ping`
+- `POST /tasks`
+- `GET /tasks`
+- `GET /tasks/{id}`
+- `PATCH /tasks/{id}`
+- `DELETE /tasks/{id}`
+
+## Task API examples
+
+Create task:
+
+```bash
+curl -X POST http://localhost:8080/tasks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Write integration tests",
+    "description": "Cover mysql repository and HTTP handlers",
+    "status": "new",
+    "priority": 4,
+    "due_at": "2026-03-10T12:00:00Z"
+  }'
+```
+
+List tasks:
+
+```bash
+curl "http://localhost:8080/tasks?status=new&q=tests&limit=20&offset=0"
+```
+
+Get task by id:
+
+```bash
+curl http://localhost:8080/tasks/1
+```
+
+Update task:
+
+```bash
+curl -X PATCH http://localhost:8080/tasks/1 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Write CRUD integration tests",
+    "status": "in_progress",
+    "priority": 5
+  }'
+```
+
+Clear due date:
+
+```bash
+curl -X PATCH http://localhost:8080/tasks/1 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "clear_due_at": true
+  }'
+```
+
+Delete task:
+
+```bash
+curl -X DELETE http://localhost:8080/tasks/1
+```
