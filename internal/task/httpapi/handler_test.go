@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -303,6 +304,18 @@ func TestHandlerErrors(t *testing.T) {
 
 		if rec.Code != http.StatusInternalServerError {
 			t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
+		}
+	})
+
+	t.Run("request body too large", func(t *testing.T) {
+		oversized := `{"title":"x","description":"` + strings.Repeat("a", int(maxRequestBodyBytes)) + `"}`
+		req := httptest.NewRequest(http.MethodPost, "/tasks", bytes.NewBufferString(oversized))
+		rec := httptest.NewRecorder()
+
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusRequestEntityTooLarge {
+			t.Fatalf("expected status %d, got %d", http.StatusRequestEntityTooLarge, rec.Code)
 		}
 	})
 }

@@ -16,6 +16,8 @@ type Handler struct {
 	service task.Service
 }
 
+const maxRequestBodyBytes int64 = 1 << 20
+
 type createTaskRequest struct {
 	Title       string    `json:"title"`
 	Description string    `json:"description"`
@@ -65,8 +67,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 
 func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 	var request createTaskRequest
-	if err := decodeJSON(r, &request); err != nil {
-		writeError(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+	if err := decodeJSON(w, r, &request); err != nil {
+		writeDecodeError(w, err)
 		return
 	}
 
@@ -140,8 +142,8 @@ func (h *Handler) updateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var request updateTaskRequest
-	if err := decodeJSON(r, &request); err != nil {
-		writeError(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+	if err := decodeJSON(w, r, &request); err != nil {
+		writeDecodeError(w, err)
 		return
 	}
 
@@ -211,12 +213,19 @@ func parseOptionalTime(value *taskTime) (*time.Time, error) {
 	return &parsed, nil
 }
 
-func decodeJSON(r *http.Request, target any) error {
+var errRequestBodyTooLarge = errors.New("request body exceeds maximum size")
+
+func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
 	defer r.Body.Close()
 
-	decoder := json.NewDecoder(r.Body)
+	body := http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
+	decoder := json.NewDecoder(body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			return errRequestBodyTooLarge
+		}
 		return err
 	}
 
@@ -243,6 +252,14 @@ func writeDomainError(w http.ResponseWriter, err error) {
 	default:
 		writeError(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 	}
+}
+
+func writeDecodeError(w http.ResponseWriter, err error) {
+	if errors.Is(err, errRequestBodyTooLarge) {
+		writeError(w, http.StatusRequestEntityTooLarge, errorResponse{Error: err.Error()})
+		return
+	}
+	writeError(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
 }
 
 func writeError(w http.ResponseWriter, status int, payload errorResponse) {
