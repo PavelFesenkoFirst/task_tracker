@@ -161,6 +161,40 @@ func TestHandlerGetTask_NotFound(t *testing.T) {
 	}
 }
 
+func TestHandlerGetTask_Success(t *testing.T) {
+	expected := task.Task{
+		ID:          42,
+		Title:       "Write CRUD API",
+		Description: "Handler happy path",
+		Status:      task.StatusInProgress,
+		Priority:    4,
+	}
+
+	svc := &mockService{getResult: expected}
+	mux := http.NewServeMux()
+	NewHandler(svc).Register(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/tasks/42", nil)
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+	if !svc.getCalled || svc.getID != 42 {
+		t.Fatalf("unexpected get call: called=%v id=%d", svc.getCalled, svc.getID)
+	}
+
+	var got task.Task
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if got.ID != expected.ID || got.Title != expected.Title || got.Status != expected.Status || got.Priority != expected.Priority {
+		t.Fatalf("unexpected response body: %+v", got)
+	}
+}
+
 func TestHandlerUpdateTask_ClearDueAt(t *testing.T) {
 	svc := &mockService{
 		updateResult: task.Task{ID: 7},
