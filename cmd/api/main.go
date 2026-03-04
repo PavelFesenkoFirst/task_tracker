@@ -14,6 +14,9 @@ import (
 	"github.com/PavelFesenkoFirst/task_tracker/internal/config"
 	platformlogger "github.com/PavelFesenkoFirst/task_tracker/internal/platform/logger"
 	mysqlplatform "github.com/PavelFesenkoFirst/task_tracker/internal/platform/mysql"
+	"github.com/PavelFesenkoFirst/task_tracker/internal/task"
+	taskhttp "github.com/PavelFesenkoFirst/task_tracker/internal/task/httpapi"
+	taskmysql "github.com/PavelFesenkoFirst/task_tracker/internal/task/repository/mysql"
 	"github.com/joho/godotenv"
 )
 
@@ -35,6 +38,10 @@ func main() {
 	}
 	defer db.Close()
 
+	taskRepository := taskmysql.New(db)
+	taskService := task.NewService(taskRepository)
+	taskHandler := taskhttp.NewHandler(taskService)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -47,6 +54,7 @@ func main() {
 			"status": "ok",
 		})
 	})
+	taskHandler.Register(mux)
 
 	server := &http.Server{
 		Addr:         ":" + cfg.App.Port,
